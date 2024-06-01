@@ -31,7 +31,7 @@ static const char *TAG = "example";
 
 QueueHandle_t app_event_queue = NULL;
 
-#define OUTPUT_PIN GPIO_NUM_3
+#define OUTPUT_PIN GPIO_NUM_4
 
 // const char password = '5';
 
