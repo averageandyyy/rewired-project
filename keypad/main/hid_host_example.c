@@ -22,14 +22,29 @@
 #include "usb/hid_usage_keyboard.h"
 
 /* GPIO Pin number for quit from example logic */
-#define APP_QUIT_PIN                GPIO_NUM_0
+#define APP_QUIT_PIN GPIO_NUM_0
 
 /* Offset to add to scan code to get to keypad numbers*/
-#define OFFSET                      0x58
+#define OFFSET 0x58
 
 static const char *TAG = "example";
 
 QueueHandle_t app_event_queue = NULL;
+
+#define OUTPUT_PIN GPIO_NUM_4
+
+// const char password = '5';
+
+// void sendPassword(char key_char)
+// {
+//     printf("SENDING %c\n", key_char);
+//     if (key_char == password)
+//     {
+//         gpio_set_level(OUTPUT_PIN, 1);
+//         vTaskDelay(50);
+//     }
+//     gpio_set_level(OUTPUT_PIN, 0);
+// }
 
 /**
  * @brief APP event group
@@ -40,7 +55,8 @@ QueueHandle_t app_event_queue = NULL;
  * APP_EVENT            - General event, which is APP_QUIT_PIN press event (Generally, it is IO0).
  * APP_EVENT_HID_HOST   - HID Host Driver event, such as device connection/disconnection or input report.
  */
-typedef enum {
+typedef enum
+{
     APP_EVENT = 0,
     APP_EVENT_HID_HOST
 } app_event_group_t;
@@ -50,10 +66,12 @@ typedef enum {
  *
  * This event is used for delivering the HID Host event from callback to a task.
  */
-typedef struct {
+typedef struct
+{
     app_event_group_t event_group;
     /* HID Host - Device related info */
-    struct {
+    struct
+    {
         hid_host_device_handle_t handle;
         hid_host_driver_event_t event;
         void *arg;
@@ -71,8 +89,10 @@ static const char *hid_proto_name_str[] = {
 /**
  * @brief Key event
  */
-typedef struct {
-    enum key_state {
+typedef struct
+{
+    enum key_state
+    {
         KEY_STATE_PRESSED = 0x00,
         KEY_STATE_RELEASED = 0x01
     } state;
@@ -80,26 +100,26 @@ typedef struct {
 } key_event_t;
 
 /* Main char symbol for ENTER key */
-#define KEYBOARD_ENTER_MAIN_CHAR    '\r'
+#define KEYBOARD_ENTER_MAIN_CHAR '\r'
 /* When set to 1 pressing ENTER will be extending with LineFeed during serial debug output */
-#define KEYBOARD_ENTER_LF_EXTEND    1
+#define KEYBOARD_ENTER_LF_EXTEND 1
 
 /**
  * @brief Scancode to ascii table
  */
-const uint8_t keycode2ascii [12] = {
-    KEYBOARD_ENTER_MAIN_CHAR,   // HID_KEY_KEYPAD_ENTER
-    '1',                        // HID_KEY_KEYPAD_1
-    '2',                        // HID_KEY_KEYPAD_2
-    '3',                        // HID_KEY_KEYPAD_3
-    '4',                        // HID_KEY_KEYPAD_4
-    '5',                        // HID_KEY_KEYPAD_5
-    '6',                        // HID_KEY_KEYPAD_6
-    '7',                        // HID_KEY_KEYPAD_7
-    '8',                        // HID_KEY_KEYPAD_8
-    '9',                        // HID_KEY_KEYPAD_9
-    '0',                        // HID_KEY_KEYPAD_0
-    '\b'                        // HID_KEY_KEYPAD_DELETE
+const uint8_t keycode2ascii[12] = {
+    KEYBOARD_ENTER_MAIN_CHAR, // HID_KEY_KEYPAD_ENTER
+    '1',                      // HID_KEY_KEYPAD_1
+    '2',                      // HID_KEY_KEYPAD_2
+    '3',                      // HID_KEY_KEYPAD_3
+    '4',                      // HID_KEY_KEYPAD_4
+    '5',                      // HID_KEY_KEYPAD_5
+    '6',                      // HID_KEY_KEYPAD_6
+    '7',                      // HID_KEY_KEYPAD_7
+    '8',                      // HID_KEY_KEYPAD_8
+    '9',                      // HID_KEY_KEYPAD_9
+    '0',                      // HID_KEY_KEYPAD_0
+    '\b'                      // HID_KEY_KEYPAD_DELETE
 };
 
 /**
@@ -111,10 +131,12 @@ static void hid_print_new_device_report_header(hid_protocol_t proto)
 {
     static hid_protocol_t prev_proto_output = -1;
 
-    if (prev_proto_output != proto) {
+    if (prev_proto_output != proto)
+    {
         prev_proto_output = proto;
         printf("\r\n");
-        if (proto == HID_PROTOCOL_KEYBOARD) {
+        if (proto == HID_PROTOCOL_KEYBOARD)
+        {
             printf("Keyboard\r\n");
         }
         fflush(stdout);
@@ -133,9 +155,12 @@ static void hid_print_new_device_report_header(hid_protocol_t proto)
 static inline bool hid_keyboard_get_char(uint8_t key_code,
                                          unsigned char *key_char)
 {
-    if ((key_code >= HID_KEY_KEYPAD_ENTER) && (key_code <= HID_KEY_KEYPAD_DELETE)) {
+    if ((key_code >= HID_KEY_KEYPAD_ENTER) && (key_code <= HID_KEY_KEYPAD_DELETE))
+    {
         *key_char = keycode2ascii[key_code - OFFSET];
-    } else {
+    }
+    else
+    {
         // All other key pressed
         return false;
     }
@@ -150,13 +175,25 @@ static inline bool hid_keyboard_get_char(uint8_t key_code,
  */
 static inline void hid_keyboard_print_char(unsigned int key_char)
 {
-    if (!!key_char) {
-        putchar(key_char);
+    static char input = 65;
+    static const char password = '5';
+    if (!!key_char)
+    {
 #if (KEYBOARD_ENTER_LF_EXTEND)
-        if (KEYBOARD_ENTER_MAIN_CHAR == key_char) {
+        if (KEYBOARD_ENTER_MAIN_CHAR == key_char)
+        {
             putchar('\n');
+            if (input == password)
+            {
+                gpio_set_level(OUTPUT_PIN, 1);
+                esp_rom_delay_us(5000);
+            }
+            gpio_set_level(OUTPUT_PIN, 0);
         }
 #endif // KEYBOARD_ENTER_LF_EXTEND
+        putchar(key_char);
+        input = key_char;
+
         fflush(stdout);
     }
 }
@@ -173,11 +210,12 @@ static void key_event_callback(key_event_t *key_event)
 
     hid_print_new_device_report_header(HID_PROTOCOL_KEYBOARD);
 
-    if (KEY_STATE_PRESSED == key_event->state) {
-        if (hid_keyboard_get_char(key_event->key_code, &key_char)) {
+    if (KEY_STATE_PRESSED == key_event->state)
+    {
+        if (hid_keyboard_get_char(key_event->key_code, &key_char))
+        {
 
             hid_keyboard_print_char(key_char);
-
         }
     }
 }
@@ -193,8 +231,10 @@ static inline bool key_found(const uint8_t *const src,
                              uint8_t key,
                              unsigned int length)
 {
-    for (unsigned int i = 0; i < length; i++) {
-        if (src[i] == key) {
+    for (unsigned int i = 0; i < length; i++)
+    {
+        if (src[i] == key)
+        {
             return true;
         }
     }
@@ -211,18 +251,21 @@ static void hid_host_keyboard_report_callback(const uint8_t *const data, const i
 {
     hid_keyboard_input_report_boot_t *kb_report = (hid_keyboard_input_report_boot_t *)data;
 
-    if (length < sizeof(hid_keyboard_input_report_boot_t)) {
+    if (length < sizeof(hid_keyboard_input_report_boot_t))
+    {
         return;
     }
 
-    static uint8_t prev_keys[HID_KEYBOARD_KEY_MAX] = { 0 };
+    static uint8_t prev_keys[HID_KEYBOARD_KEY_MAX] = {0};
     key_event_t key_event;
 
-    for (int i = 0; i < HID_KEYBOARD_KEY_MAX; i++) {
+    for (int i = 0; i < HID_KEYBOARD_KEY_MAX; i++)
+    {
 
         // key has been released verification
         if (prev_keys[i] > HID_KEY_ERROR_UNDEFINED &&
-                !key_found(kb_report->key, prev_keys[i], HID_KEYBOARD_KEY_MAX)) {
+            !key_found(kb_report->key, prev_keys[i], HID_KEYBOARD_KEY_MAX))
+        {
             key_event.key_code = prev_keys[i];
             key_event.state = KEY_STATE_RELEASED;
             key_event_callback(&key_event);
@@ -230,7 +273,8 @@ static void hid_host_keyboard_report_callback(const uint8_t *const data, const i
 
         // key has been pressed verification
         if (kb_report->key[i] > HID_KEY_ERROR_UNDEFINED &&
-                !key_found(prev_keys, kb_report->key[i], HID_KEYBOARD_KEY_MAX)) {
+            !key_found(prev_keys, kb_report->key[i], HID_KEYBOARD_KEY_MAX))
+        {
             key_event.key_code = kb_report->key[i];
             key_event.state = KEY_STATE_PRESSED;
             key_event_callback(&key_event);
@@ -251,20 +295,23 @@ void hid_host_interface_callback(hid_host_device_handle_t hid_device_handle,
                                  const hid_host_interface_event_t event,
                                  void *arg)
 {
-    uint8_t data[64] = { 0 };
+    uint8_t data[64] = {0};
     size_t data_length = 0;
     hid_host_dev_params_t dev_params;
     ESP_ERROR_CHECK(hid_host_device_get_params(hid_device_handle, &dev_params));
 
-    switch (event) {
+    switch (event)
+    {
     case HID_HOST_INTERFACE_EVENT_INPUT_REPORT:
         ESP_ERROR_CHECK(hid_host_device_get_raw_input_report_data(hid_device_handle,
                                                                   data,
                                                                   64,
                                                                   &data_length));
 
-        if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class) {
-            if (HID_PROTOCOL_KEYBOARD == dev_params.proto) {
+        if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class)
+        {
+            if (HID_PROTOCOL_KEYBOARD == dev_params.proto)
+            {
                 hid_host_keyboard_report_callback(data, data_length);
             }
         }
@@ -300,20 +347,22 @@ void hid_host_device_event(hid_host_device_handle_t hid_device_handle,
     hid_host_dev_params_t dev_params;
     ESP_ERROR_CHECK(hid_host_device_get_params(hid_device_handle, &dev_params));
 
-    switch (event) {
+    switch (event)
+    {
     case HID_HOST_DRIVER_EVENT_CONNECTED:
         ESP_LOGI(TAG, "HID Device, protocol '%s' CONNECTED",
                  hid_proto_name_str[dev_params.proto]);
 
         const hid_host_device_config_t dev_config = {
             .callback = hid_host_interface_callback,
-            .callback_arg = NULL
-        };
+            .callback_arg = NULL};
 
         ESP_ERROR_CHECK(hid_host_device_open(hid_device_handle, &dev_config));
-        if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class) {
+        if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class)
+        {
             ESP_ERROR_CHECK(hid_class_request_set_protocol(hid_device_handle, HID_REPORT_PROTOCOL_BOOT));
-            if (HID_PROTOCOL_KEYBOARD == dev_params.proto) {
+            if (HID_PROTOCOL_KEYBOARD == dev_params.proto)
+            {
                 ESP_ERROR_CHECK(hid_class_request_set_idle(hid_device_handle, 0, 0));
             }
         }
@@ -339,12 +388,14 @@ static void usb_lib_task(void *arg)
     ESP_ERROR_CHECK(usb_host_install(&host_config));
     xTaskNotifyGive(arg);
 
-    while (true) {
+    while (true)
+    {
         uint32_t event_flags;
         usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
         // In this example, there is only one client registered
         // So, once we deregister the client, this call must succeed with ESP_OK
-        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
+        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS)
+        {
             ESP_ERROR_CHECK(usb_host_device_free_all());
             break;
         }
@@ -371,11 +422,13 @@ static void gpio_isr_cb(void *arg)
         .event_group = APP_EVENT,
     };
 
-    if (app_event_queue) {
+    if (app_event_queue)
+    {
         xQueueSendFromISR(app_event_queue, &evt_queue, &xTaskWoken);
     }
 
-    if (xTaskWoken == pdTRUE) {
+    if (xTaskWoken == pdTRUE)
+    {
         portYIELD_FROM_ISR();
     }
 }
@@ -398,10 +451,10 @@ void hid_host_device_callback(hid_host_device_handle_t hid_device_handle,
         // HID Host Device related info
         .hid_host_device.handle = hid_device_handle,
         .hid_host_device.event = event,
-        .hid_host_device.arg = arg
-    };
+        .hid_host_device.arg = arg};
 
-    if (app_event_queue) {
+    if (app_event_queue)
+    {
         xQueueSend(app_event_queue, &evt_queue, 0);
     }
 }
@@ -423,12 +476,13 @@ void app_main(void)
     ESP_ERROR_CHECK(gpio_config(&input_pin));
     ESP_ERROR_CHECK(gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1));
     ESP_ERROR_CHECK(gpio_isr_handler_add(APP_QUIT_PIN, gpio_isr_cb, NULL));
-
+    gpio_reset_pin(OUTPUT_PIN);
+    gpio_set_direction(OUTPUT_PIN, GPIO_MODE_OUTPUT);
     /*
-    * Create usb_lib_task to:
-    * - initialize USB Host library
-    * - Handle USB Host events while APP pin in in HIGH state
-    */
+     * Create usb_lib_task to:
+     * - initialize USB Host library
+     * - Handle USB Host events while APP pin in in HIGH state
+     */
     task_created = xTaskCreatePinnedToCore(usb_lib_task,
                                            "usb_events",
                                            4096,
@@ -440,18 +494,17 @@ void app_main(void)
     ulTaskNotifyTake(false, 1000);
 
     /*
-    * HID host driver configuration
-    * - create background task for handling low level event inside the HID driver
-    * - provide the device callback to get new HID Device connection event
-    */
+     * HID host driver configuration
+     * - create background task for handling low level event inside the HID driver
+     * - provide the device callback to get new HID Device connection event
+     */
     const hid_host_driver_config_t hid_host_driver_config = {
         .create_background_task = true,
         .task_priority = 5,
         .stack_size = 4096,
         .core_id = 0,
         .callback = hid_host_device_callback,
-        .callback_arg = NULL
-    };
+        .callback_arg = NULL};
 
     ESP_ERROR_CHECK(hid_host_install(&hid_host_driver_config));
 
@@ -460,23 +513,30 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Waiting for HID Device to be connected");
 
-    while (1) {
+    while (1)
+    {
         // Wait queue
-        if (xQueueReceive(app_event_queue, &evt_queue, portMAX_DELAY)) {
-            if (APP_EVENT == evt_queue.event_group) {
+        if (xQueueReceive(app_event_queue, &evt_queue, portMAX_DELAY))
+        {
+            if (APP_EVENT == evt_queue.event_group)
+            {
                 // User pressed button
                 usb_host_lib_info_t lib_info;
                 ESP_ERROR_CHECK(usb_host_lib_info(&lib_info));
-                if (lib_info.num_devices == 0) {
+                if (lib_info.num_devices == 0)
+                {
                     // End while cycle
                     break;
-                } else {
+                }
+                else
+                {
                     ESP_LOGW(TAG, "To shutdown example, remove all USB devices and press button again.");
                     // Keep polling
                 }
             }
 
-            if (APP_EVENT_HID_HOST ==  evt_queue.event_group) {
+            if (APP_EVENT_HID_HOST == evt_queue.event_group)
+            {
                 hid_host_device_event(evt_queue.hid_host_device.handle,
                                       evt_queue.hid_host_device.event,
                                       evt_queue.hid_host_device.arg);
